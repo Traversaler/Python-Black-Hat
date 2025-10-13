@@ -1,3 +1,4 @@
+# 扫描wordpress常见文件和目录
 import contextlib
 import os
 import queue
@@ -29,6 +30,33 @@ def gather_paths():
             web_paths.put(path)
 
 
+def test_remote():
+    while not web_paths.empty():
+        path = web_paths.get()
+        url = f'{TARGET}{path}'
+        # 目标可能有节流或锁定
+        time.sleep(2)
+        r = requests.get(url)
+        if r.status_code == 200:
+            answers.put(url)
+            sys.stdout.write('+')
+        else:
+            sys.stdout.write('x')
+        sys.stdout.flush()
+
+
+def run():
+    mythreads = list()
+    for i in range(THREADS):
+        print(f'Spawning thread {i}')
+        t = threading.Thread(target=test_remote())
+        mythreads.append(t)
+        t.start()
+
+    for thread in mythreads:
+        thread.join()
+
+
 @contextlib.contextmanager
 # chdir函数能在另一个目录下执行代码，保证在退出时回到原本目录
 def chdir(path):
@@ -49,3 +77,9 @@ if __name__ == '__main__':
     with chdir("/home/tim/Downloads/wordpress"):
         gather_paths()
     input('Press return to continue.')
+
+    run()
+    with open('myanswers.txt', 'w') as f:
+        while not answers.empty():
+            f.write(f'{answers.get()}\n')
+    print('done')
